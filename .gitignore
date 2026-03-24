@@ -1,0 +1,7 @@
+.env
+.env.local
+.next/
+node_modules/
+*.tgz
+.DS_Store
+coverage/
