@@ -5,3 +5,6 @@ node_modules/
 *.tgz
 .DS_Store
 coverage/
+.vercel
+playwright-report/
+test-results/

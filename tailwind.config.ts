@@ -9,17 +9,23 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        // Folloze brand palette
         folloze: {
-          navy:   "#0F1629",
-          purple: "#6B46F5",
-          violet: "#8B5CF6",
-          light:  "#EDE9FE",
-          muted:  "#A78BFA",
+          navy: "#081C3A",
+          blue: "#0077FF",
+          cobalt: "#005BD1",
+          violet: "#5E5BFF",
+          sky: "#EAF4FF",
+          mist: "#F6FAFF",
+          border: "#D7E7FF",
+          ink: "#5A6985",
         },
       },
       fontFamily: {
-        sans: ["Inter", "system-ui", "sans-serif"],
+        sans: ["var(--font-open-sans)", "system-ui", "sans-serif"],
+      },
+      boxShadow: {
+        panel: "0 28px 80px -48px rgba(8, 28, 58, 0.35)",
+        glow: "0 22px 60px -34px rgba(0, 119, 255, 0.45)",
       },
     },
   },
