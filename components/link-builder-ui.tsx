@@ -107,14 +107,17 @@ export function WorkspaceShell({ children, sidebar }: ShellProps) {
         <header className="mb-6 rounded-[28px] border border-white/70 bg-white/80 px-5 py-4 shadow-panel backdrop-blur sm:px-6">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-4">
-              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-folloze-blue via-folloze-violet to-[#7ab7ff] text-white shadow-glow">
-                <LinkSparkIcon className="h-5 w-5" />
-              </div>
+              <img
+                src="/folloze-logo.svg"
+                alt="Folloze"
+                className="h-7 w-auto sm:h-8"
+              />
+              <div className="h-8 w-px bg-folloze-border" />
               <div>
-                <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-folloze-blue">
-                  Folloze
+                <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-folloze-ink">
+                  Workspace
                 </p>
-                <h1 className="text-xl font-semibold tracking-tight text-folloze-navy">
+                <h1 className="text-lg font-semibold tracking-tight text-folloze-navy sm:text-xl">
                   Link Builder
                 </h1>
               </div>
@@ -695,15 +698,6 @@ function UploadIcon({ className }: { className?: string }) {
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className={className} aria-hidden="true">
       <path strokeLinecap="round" strokeLinejoin="round" d="M12 16V4m0 0 4 4m-4-4-4 4" />
       <path strokeLinecap="round" strokeLinejoin="round" d="M4 15.5v2A2.5 2.5 0 0 0 6.5 20h11A2.5 2.5 0 0 0 20 17.5v-2" />
-    </svg>
-  );
-}
-
-function LinkSparkIcon({ className }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className={className} aria-hidden="true">
-      <path strokeLinecap="round" strokeLinejoin="round" d="m7.5 12 3-3m3 6 3-3" />
-      <path strokeLinecap="round" strokeLinejoin="round" d="m9 15-1.5 1.5a3.182 3.182 0 1 1-4.5-4.5L4.5 10.5M15 9l1.5-1.5a3.182 3.182 0 0 1 4.5 4.5L19.5 13.5" />
     </svg>
   );
 }
