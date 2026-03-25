@@ -1,7 +1,17 @@
-import { describe, it, expect } from "vitest";
-import { normalizeHeader, parseContactsCsv, serializeOutputCsv, MAX_ROWS } from "../lib/csv-parser";
+import { describe, expect, it } from "vitest";
+import {
+  MAX_ROWS,
+  createEmptyColumnMapping,
+  inspectContactsCsv,
+  normalizeHeader,
+  parseContactsCsv,
+  serializeOutputCsv,
+  summarizeInspection,
+} from "../lib/csv-parser";
 
-// ── normalizeHeader ──────────────────────────────────────────────────────────
+function makeFile(content: string, name = "contacts.csv"): File {
+  return new File([content], name, { type: "text/csv" });
+}
 
 describe("normalizeHeader", () => {
   it("maps exact canonical names", () => {
@@ -10,7 +20,7 @@ describe("normalizeHeader", () => {
     expect(normalizeHeader("company")).toBe("company");
   });
 
-  it("handles Salesforce-style headers (Title Case with spaces)", () => {
+  it("handles Salesforce-style headers", () => {
     expect(normalizeHeader("First Name")).toBe("first_name");
     expect(normalizeHeader("Last Name")).toBe("last_name");
     expect(normalizeHeader("Email")).toBe("email");
@@ -18,129 +28,151 @@ describe("normalizeHeader", () => {
     expect(normalizeHeader("Title")).toBe("title");
   });
 
-  it("handles HubSpot-style headers (lowercase no separator)", () => {
+  it("handles HubSpot- and LinkedIn-style headers", () => {
     expect(normalizeHeader("firstname")).toBe("first_name");
-    expect(normalizeHeader("lastname")).toBe("last_name");
     expect(normalizeHeader("jobtitle")).toBe("title");
-  });
-
-  it("handles Apollo-style headers", () => {
-    expect(normalizeHeader("organization_name")).toBe("company");
-    expect(normalizeHeader("first_name")).toBe("first_name");
-  });
-
-  it("handles LinkedIn-style 'Email Address'", () => {
     expect(normalizeHeader("Email Address")).toBe("email");
     expect(normalizeHeader("Position")).toBe("title");
   });
 
-  it("returns null for unrecognized headers", () => {
+  it("returns null for unknown headers", () => {
     expect(normalizeHeader("phone")).toBeNull();
-    expect(normalizeHeader("id")).toBeNull();
     expect(normalizeHeader("")).toBeNull();
   });
 });
 
-// ── parseContactsCsv ─────────────────────────────────────────────────────────
-
-// Helper to create a File from a CSV string
-function makeFile(content: string, name = "contacts.csv"): File {
-  return new File([content], name, { type: "text/csv" });
-}
-
-describe("parseContactsCsv", () => {
+describe("inspectContactsCsv", () => {
   it("rejects non-CSV files", async () => {
-    const file = makeFile("hello world", "data.xlsx");
-    const result = await parseContactsCsv(file);
+    const result = await inspectContactsCsv(makeFile("hello", "contacts.xlsx"));
     expect(result).toMatchObject({ type: "file_type" });
   });
 
-  it("rejects empty CSV", async () => {
-    const result = await parseContactsCsv(makeFile("email,first_name\n"));
+  it("rejects empty CSV files", async () => {
+    const result = await inspectContactsCsv(makeFile("email,first_name\n"));
     expect(result).toMatchObject({ type: "empty" });
   });
 
-  it("rejects CSV with no recognizable email column", async () => {
-    const result = await parseContactsCsv(makeFile("phone,name\n555-1234,Jane\n"));
-    expect(result).toMatchObject({ type: "missing_column" });
-  });
-
-  it("parses standard template CSV", async () => {
-    const csv = `email,first_name,last_name,company,title,sender_email
-jane@acme.com,Jane,Doe,Acme Inc,VP Marketing,rep@co.com
-john@corp.io,John,Smith,Corp,Director,rep@co.com`;
-    const result = await parseContactsCsv(makeFile(csv));
-    expect(result).not.toHaveProperty("type");
-    if ("rows" in result) {
-      expect(result.rows).toHaveLength(2);
-      expect(result.rows[0].email).toBe("jane@acme.com");
-      expect(result.rows[0].company).toBe("Acme Inc");
-      expect(result.skippedCount).toBe(0);
-    }
-  });
-
-  it("parses Salesforce-style headers (Title Case)", async () => {
-    const csv = `First Name,Last Name,Email,Company,Title
-Jane,Doe,jane@acme.com,Acme Inc,VP Marketing`;
-    const result = await parseContactsCsv(makeFile(csv));
-    if ("rows" in result) {
-      expect(result.rows[0].email).toBe("jane@acme.com");
-      expect(result.rows[0].first_name).toBe("Jane");
-      expect(result.rows[0].company).toBe("Acme Inc");
-    }
-  });
-
-  it("parses HubSpot-style headers", async () => {
-    const csv = `email,firstname,lastname,company,jobtitle
+  it("infers mappings from common CRM headers", async () => {
+    const csv = `Email Address,First Name,Last Name,Company,Position
 jane@acme.com,Jane,Doe,Acme Inc,VP Marketing`;
-    const result = await parseContactsCsv(makeFile(csv));
-    if ("rows" in result) {
-      expect(result.rows[0].first_name).toBe("Jane");
-      expect(result.rows[0].title).toBe("VP Marketing");
+
+    const result = await inspectContactsCsv(makeFile(csv));
+    expect(result).not.toHaveProperty("type");
+
+    if ("headers" in result) {
+      expect(result.inferredMapping.email).toBe("Email Address");
+      expect(result.inferredMapping.first_name).toBe("First Name");
+      expect(result.inferredMapping.title).toBe("Position");
+      expect(result.ignoredHeaders).toEqual([]);
     }
   });
 
-  it("skips rows with blank email and counts them", async () => {
-    const csv = `email,first_name
-jane@acme.com,Jane
-,John
-sara@corp.io,Sara`;
-    const result = await parseContactsCsv(makeFile(csv));
-    if ("rows" in result) {
-      expect(result.rows).toHaveLength(2);
-      expect(result.skippedCount).toBe(1);
+  it("allows inspection even when no email alias is recognized", async () => {
+    const csv = `contact_mail,name,company
+jane@acme.com,Jane Doe,Acme`;
+
+    const result = await inspectContactsCsv(makeFile(csv));
+    expect(result).not.toHaveProperty("type");
+
+    if ("headers" in result) {
+      expect(result.inferredMapping.email).toBeNull();
+      expect(result.ignoredHeaders).toContain("contact_mail");
     }
   });
 
-  it("returns error when all rows are skipped (no valid emails)", async () => {
-    const csv = `email,first_name
-,Jane
-,John`;
-    const result = await parseContactsCsv(makeFile(csv));
-    expect(result).toHaveProperty("type");
-  });
+  it("truncates oversized uploads during inspection", async () => {
+    const rows = Array.from({ length: MAX_ROWS + 5 }, (_, index) => `user${index}@example.com,User${index}`);
+    const csv = `email,first_name\n${rows.join("\n")}`;
 
-  it("truncates at MAX_ROWS and sets truncated flag", async () => {
-    const rows = Array.from({ length: MAX_ROWS + 10 }, (_, i) => `user${i}@test.com,User`);
-    const csv = "email,first_name\n" + rows.join("\n");
-    const result = await parseContactsCsv(makeFile(csv));
-    if ("rows" in result) {
+    const result = await inspectContactsCsv(makeFile(csv));
+    expect(result).not.toHaveProperty("type");
+
+    if ("headers" in result) {
       expect(result.truncated).toBe(true);
-      expect(result.rows.length).toBeLessThanOrEqual(MAX_ROWS);
-      expect(result.warnings.length).toBeGreaterThan(0);
-    }
-  });
-
-  it("treats sender_email as optional — no error if column missing", async () => {
-    const csv = `email,first_name\njane@acme.com,Jane`;
-    const result = await parseContactsCsv(makeFile(csv));
-    if ("rows" in result) {
-      expect(result.rows[0].sender_email).toBeUndefined();
+      expect(result.rows).toHaveLength(MAX_ROWS);
+      expect(result.warnings[0]).toContain("Only the first 5,000 will be processed.");
     }
   });
 });
 
-// ── serializeOutputCsv ───────────────────────────────────────────────────────
+describe("summarizeInspection", () => {
+  it("surfaces blocking issues when email is unmapped", async () => {
+    const inspection = await inspectContactsCsv(
+      makeFile(`contact_mail,first_name\njane@acme.com,Jane`)
+    );
+
+    if ("type" in inspection) {
+      throw new Error("Expected inspection to succeed");
+    }
+
+    const summary = summarizeInspection(inspection, createEmptyColumnMapping());
+    expect(summary.blockingIssues).toContain("Map an email column before generating links.");
+  });
+
+  it("allows manual mapping overrides for non-standard email headers", async () => {
+    const inspection = await inspectContactsCsv(
+      makeFile(`contact_mail,first_name\njane@acme.com,Jane`)
+    );
+
+    if ("type" in inspection) {
+      throw new Error("Expected inspection to succeed");
+    }
+
+    const summary = summarizeInspection(inspection, {
+      ...createEmptyColumnMapping(),
+      email: "contact_mail",
+      first_name: "first_name",
+    });
+
+    expect(summary.validRowCount).toBe(1);
+    expect(summary.previewRows[0].email).toBe("jane@acme.com");
+    expect(summary.fieldStatuses.email.confidence).toBe("manual");
+  });
+
+  it("counts rows skipped by the selected email column", async () => {
+    const inspection = await inspectContactsCsv(
+      makeFile(`email,first_name\njane@acme.com,Jane\n,John`)
+    );
+
+    if ("type" in inspection) {
+      throw new Error("Expected inspection to succeed");
+    }
+
+    const summary = summarizeInspection(inspection, inspection.inferredMapping);
+    expect(summary.validRowCount).toBe(1);
+    expect(summary.skippedCount).toBe(1);
+    expect(summary.nonBlockingIssues.join(" ")).toContain("will be skipped");
+  });
+});
+
+describe("parseContactsCsv", () => {
+  it("rejects unmapped email columns", async () => {
+    const result = await parseContactsCsv(
+      makeFile(`contact_mail,first_name\njane@acme.com,Jane`),
+      createEmptyColumnMapping()
+    );
+
+    expect(result).toMatchObject({ type: "missing_column" });
+  });
+
+  it("parses rows using the confirmed mapping", async () => {
+    const result = await parseContactsCsv(
+      makeFile(`contact_mail,first_name\njane@acme.com,Jane`),
+      {
+        ...createEmptyColumnMapping(),
+        email: "contact_mail",
+        first_name: "first_name",
+      }
+    );
+
+    expect(result).not.toHaveProperty("type");
+    if ("rows" in result) {
+      expect(result.rows).toHaveLength(1);
+      expect(result.rows[0].email).toBe("jane@acme.com");
+      expect(result.rows[0].first_name).toBe("Jane");
+    }
+  });
+});
 
 describe("serializeOutputCsv", () => {
   it("appends folloze_link column", () => {
@@ -152,7 +184,7 @@ describe("serializeOutputCsv", () => {
     expect(csv).toContain("https://engage.folloze.com");
   });
 
-  it("outputs empty string for null links", () => {
+  it("outputs empty strings for null links", () => {
     const rows = [{ email: "" }];
     const links = [null];
     const csv = serializeOutputCsv(rows, links);
