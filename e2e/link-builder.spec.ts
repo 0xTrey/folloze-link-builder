@@ -10,7 +10,7 @@ function csvFile(name: string, contents: string) {
 
 const validCsv = `email,first_name,last_name,company,title,sender_email
 jane@acme.com,Jane,Doe,Acme,VP Marketing,rep@folloze.com
-john@orbit.io,John,Smith,Orbit,Director,rep@folloze.com`;
+john@example.com,John,Smith,Orbit,Director,rep@folloze.com`;
 
 test("renders the default wizard workspace", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 1100 });

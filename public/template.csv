@@ -1,4 +1,4 @@
 email,first_name,last_name,company,title,sender_email
 jane.doe@acme.com,Jane,Doe,Acme Inc,VP of Marketing,rep@yourcompany.com
-john.smith@techcorp.io,John,Smith,TechCorp,Director of Demand Gen,rep@yourcompany.com
+john.smith@example.com,John,Smith,TechCorp,Director of Demand Gen,rep@yourcompany.com
 sara.jones@example.com,Sara,Jones,Example Co,Head of ABM,
