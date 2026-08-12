@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/db";
 import {
-  checkSessionFetchRateLimit,
+  enforceSessionFetchRateLimit,
   getClientIp,
   getNoStoreHeaders,
   isValidSessionId,
@@ -12,7 +12,16 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const clientIp = getClientIp(req);
-  const rateLimit = checkSessionFetchRateLimit(clientIp);
+  let rateLimit;
+  try {
+    rateLimit = await enforceSessionFetchRateLimit(clientIp);
+  } catch (err) {
+    console.error("[sessions GET rate limit]", err);
+    return NextResponse.json(
+      { error: "Request protection is temporarily unavailable. Try again shortly." },
+      { status: 503, headers: getNoStoreHeaders() }
+    );
+  }
 
   if (!rateLimit.ok) {
     return NextResponse.json(

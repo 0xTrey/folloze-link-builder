@@ -45,3 +45,20 @@ npm test
 npm run test:e2e
 npm run test:build-css
 ```
+
+## Cloudflare/OpenNext preview
+
+This branch adds a review-only Cloudflare Worker configuration. It must not be
+deployed over the Vercel production alias without the parity checks below.
+
+- Build the Worker bundle: `npm run build:cloudflare`
+- Run a local Worker preview: `npm run preview:cloudflare`
+- Validate the generated Worker without deployment: `npm run check:cloudflare`
+- Bind `DATABASE_URL` as a Worker secret. It is the only application secret.
+- `RATE_LIMITER` is a Durable Object binding declared in `wrangler.jsonc`; it
+  stores only a hashed client-and-route counter, never CSV/session content.
+
+The session APIs fail closed with `503` if the Durable Object binding is absent.
+Their successful, validation, rate-limit, and error responses remain
+`Cache-Control: no-store`. Before a live cutover, run a Cloudflare Worker to
+Neon create/read test using a synthetic 5 MiB CSV. Do not use customer data.

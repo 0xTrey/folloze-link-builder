@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createSession } from "@/lib/db";
 import {
-  checkSessionCreateRateLimit,
+  enforceSessionCreateRateLimit,
   getClientIp,
   getNoStoreHeaders,
   validateSessionCreateBody,
@@ -9,7 +9,16 @@ import {
 
 export async function POST(req: NextRequest) {
   const clientIp = getClientIp(req);
-  const rateLimit = checkSessionCreateRateLimit(clientIp);
+  let rateLimit;
+  try {
+    rateLimit = await enforceSessionCreateRateLimit(clientIp);
+  } catch (err) {
+    console.error("[sessions POST rate limit]", err);
+    return NextResponse.json(
+      { error: "Request protection is temporarily unavailable. Try again shortly." },
+      { status: 503, headers: getNoStoreHeaders() }
+    );
+  }
 
   if (!rateLimit.ok) {
     return NextResponse.json(

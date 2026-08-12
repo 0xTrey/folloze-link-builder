@@ -1,0 +1,2 @@
+# Local Worker preview only. Do not commit a populated .dev.vars file.
+DATABASE_URL=

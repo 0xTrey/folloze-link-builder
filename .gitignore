@@ -6,5 +6,9 @@ node_modules/
 .DS_Store
 coverage/
 .vercel
+.open-next
+.wrangler
+.dev.vars*
+!.dev.vars.example
 playwright-report/
 test-results/
