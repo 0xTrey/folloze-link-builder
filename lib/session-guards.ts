@@ -1,6 +1,7 @@
 import type { NextRequest } from "next/server";
 import { MAX_ROWS } from "@/lib/csv-parser";
 import type { SessionConfig } from "@/lib/db";
+import { consumeDistributedRateLimit } from "@/lib/cloudflare-rate-limit";
 
 const POST_WINDOW_MS = 10 * 60 * 1000;
 const GET_WINDOW_MS = 10 * 60 * 1000;
@@ -48,6 +49,11 @@ export function getNoStoreHeaders(extra?: Record<string, string>) {
 }
 
 export function getClientIp(request: Pick<NextRequest, "headers">): string {
+  // Cloudflare strips a client-supplied value and inserts this header at the
+  // edge. Only fall back to proxy headers for non-Worker local development.
+  const cloudflareIp = request.headers.get("cf-connecting-ip")?.trim();
+  if (cloudflareIp) return cloudflareIp;
+
   const forwardedFor = request.headers.get("x-forwarded-for");
   if (forwardedFor) {
     const first = forwardedFor.split(",")[0]?.trim();
@@ -58,6 +64,24 @@ export function getClientIp(request: Pick<NextRequest, "headers">): string {
   if (realIp) return realIp;
 
   return "unknown";
+}
+
+export async function enforceSessionCreateRateLimit(clientIp: string) {
+  return consumeDistributedRateLimit({
+    scope: "session-post",
+    clientIp,
+    limit: POST_LIMIT,
+    windowMs: POST_WINDOW_MS,
+  });
+}
+
+export async function enforceSessionFetchRateLimit(clientIp: string) {
+  return consumeDistributedRateLimit({
+    scope: "session-get",
+    clientIp,
+    limit: GET_LIMIT,
+    windowMs: GET_WINDOW_MS,
+  });
 }
 
 export function checkSessionCreateRateLimit(clientIp: string, now = Date.now()) {

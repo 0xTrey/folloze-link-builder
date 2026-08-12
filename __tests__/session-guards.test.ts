@@ -3,6 +3,7 @@ import {
   __resetRateLimitStoreForTests,
   checkSessionCreateRateLimit,
   checkSessionFetchRateLimit,
+  getClientIp,
   isValidSessionId,
   validateSessionCreateBody,
 } from "../lib/session-guards";
@@ -75,6 +76,15 @@ describe("validateSessionCreateBody", () => {
       status: 413,
     });
   });
+
+  it("accepts a synthetic payload exactly at the 5 MiB boundary", () => {
+    const prefix = "folloze_link\n";
+    const result = validateSessionCreateBody({
+      ...validBody,
+      csvData: `${prefix}${"x".repeat(5 * 1024 * 1024 - prefix.length)}`,
+    });
+    expect(result.ok).toBe(true);
+  });
 });
 
 describe("session id validation", () => {
@@ -85,6 +95,18 @@ describe("session id validation", () => {
   it("rejects invalid session ids", () => {
     expect(isValidSessionId("../../../etc/passwd")).toBe(false);
     expect(isValidSessionId("not-a-uuid")).toBe(false);
+  });
+});
+
+describe("trusted client IP", () => {
+  it("prefers Cloudflare's edge-populated client IP header", () => {
+    const request = {
+      headers: new Headers({
+        "cf-connecting-ip": "198.51.100.20",
+        "x-forwarded-for": "203.0.113.99"
+      })
+    } as never;
+    expect(getClientIp(request)).toBe("198.51.100.20");
   });
 });
 
