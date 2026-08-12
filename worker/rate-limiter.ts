@@ -24,6 +24,8 @@ export type RateLimitDecision = {
 };
 
 const stateKey = "window";
+const allowedLimits = new Set([20, 120]);
+const allowedWindows = new Set([10 * 60_000]);
 
 export function consumeRateLimitWindow(
   current: LimitState | undefined,
@@ -57,14 +59,17 @@ export class RateLimiter {
   async fetch(request: Request): Promise<Response> {
     if (request.method !== "POST") return new Response("Method Not Allowed", { status: 405 });
     const input = (await request.json()) as Partial<LimitRequest>;
-    if (!Number.isInteger(input.limit) || !Number.isInteger(input.windowMs) ||
-      !input.limit || !input.windowMs || input.limit < 1 || input.windowMs < 1) {
+    const limit = input.limit;
+    const windowMs = input.windowMs;
+    if (typeof limit !== "number" || typeof windowMs !== "number" ||
+      !Number.isInteger(limit) || !Number.isInteger(windowMs) ||
+      !allowedLimits.has(limit) || !allowedWindows.has(windowMs)) {
       return new Response("Invalid rate limit request", { status: 400 });
     }
     const current = await this.state.storage.get<LimitState>(stateKey);
     const { next, decision } = consumeRateLimitWindow(current, {
-      limit: input.limit,
-      windowMs: input.windowMs,
+      limit,
+      windowMs,
       now: input.now
     });
     await this.state.storage.put(stateKey, next);

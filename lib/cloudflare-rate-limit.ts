@@ -12,6 +12,14 @@ type CloudflareEnv = { RATE_LIMITER?: DurableObjectNamespace };
 
 export type DistributedRateLimitResult = RateLimitDecision;
 
+/**
+ * This is an explicit Worker-only binding, not environment inference. Keeping
+ * Vercel on its existing limiter is required until its production alias retires.
+ */
+export function isCloudflareRuntime(): boolean {
+  return process.env.FOLLOZE_LINK_BUILDER_PLATFORM === "cloudflare";
+}
+
 async function digest(value: string): Promise<string> {
   const bytes = new TextEncoder().encode(value);
   const hash = await crypto.subtle.digest("SHA-256", bytes);

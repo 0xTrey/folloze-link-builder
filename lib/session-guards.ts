@@ -1,7 +1,7 @@
 import type { NextRequest } from "next/server";
 import { MAX_ROWS } from "@/lib/csv-parser";
 import type { SessionConfig } from "@/lib/db";
-import { consumeDistributedRateLimit } from "@/lib/cloudflare-rate-limit";
+import { consumeDistributedRateLimit, isCloudflareRuntime } from "@/lib/cloudflare-rate-limit";
 
 const POST_WINDOW_MS = 10 * 60 * 1000;
 const GET_WINDOW_MS = 10 * 60 * 1000;
@@ -49,10 +49,10 @@ export function getNoStoreHeaders(extra?: Record<string, string>) {
 }
 
 export function getClientIp(request: Pick<NextRequest, "headers">): string {
-  // Cloudflare strips a client-supplied value and inserts this header at the
-  // edge. Only fall back to proxy headers for non-Worker local development.
+  // Cloudflare strips client-supplied values and inserts this header at the
+  // edge. Vercel must continue to ignore it until its production alias retires.
   const cloudflareIp = request.headers.get("cf-connecting-ip")?.trim();
-  if (cloudflareIp) return cloudflareIp;
+  if (isCloudflareRuntime() && cloudflareIp) return cloudflareIp;
 
   const forwardedFor = request.headers.get("x-forwarded-for");
   if (forwardedFor) {
@@ -67,6 +67,7 @@ export function getClientIp(request: Pick<NextRequest, "headers">): string {
 }
 
 export async function enforceSessionCreateRateLimit(clientIp: string) {
+  if (!isCloudflareRuntime()) return checkSessionCreateRateLimit(clientIp);
   return consumeDistributedRateLimit({
     scope: "session-post",
     clientIp,
@@ -76,6 +77,7 @@ export async function enforceSessionCreateRateLimit(clientIp: string) {
 }
 
 export async function enforceSessionFetchRateLimit(clientIp: string) {
+  if (!isCloudflareRuntime()) return checkSessionFetchRateLimit(clientIp);
   return consumeDistributedRateLimit({
     scope: "session-get",
     clientIp,

@@ -1,4 +1,4 @@
-import { describe, expect, it, beforeEach } from "vitest";
+import { afterEach, describe, expect, it, beforeEach, vi } from "vitest";
 import {
   __resetRateLimitStoreForTests,
   checkSessionCreateRateLimit,
@@ -87,6 +87,10 @@ describe("validateSessionCreateBody", () => {
   });
 });
 
+afterEach(() => {
+  vi.unstubAllEnvs();
+});
+
 describe("session id validation", () => {
   it("accepts valid UUIDs", () => {
     expect(isValidSessionId("92f9b0ef-2ac4-4d2a-8a81-b5f8fc2af252")).toBe(true);
@@ -99,7 +103,19 @@ describe("session id validation", () => {
 });
 
 describe("trusted client IP", () => {
-  it("prefers Cloudflare's edge-populated client IP header", () => {
+  it("ignores a spoofed Cloudflare header on Vercel and uses the forwarded IP", () => {
+    vi.stubEnv("FOLLOZE_LINK_BUILDER_PLATFORM", "vercel");
+    const request = {
+      headers: new Headers({
+        "cf-connecting-ip": "198.51.100.20",
+        "x-forwarded-for": "203.0.113.99"
+      })
+    } as never;
+    expect(getClientIp(request)).toBe("203.0.113.99");
+  });
+
+  it("uses Cloudflare's edge-populated client IP header only in the Worker runtime", () => {
+    vi.stubEnv("FOLLOZE_LINK_BUILDER_PLATFORM", "cloudflare");
     const request = {
       headers: new Headers({
         "cf-connecting-ip": "198.51.100.20",

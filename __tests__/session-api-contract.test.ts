@@ -2,13 +2,13 @@ import { NextRequest } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const rateLimit = vi.hoisted(() => vi.fn());
+const isCloudflareRuntime = vi.hoisted(() => vi.fn());
 const createSession = vi.hoisted(() => vi.fn());
 const getSession = vi.hoisted(() => vi.fn());
 
-vi.mock("@/lib/session-guards", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@/lib/session-guards")>()),
-  enforceSessionCreateRateLimit: rateLimit,
-  enforceSessionFetchRateLimit: rateLimit,
+vi.mock("@/lib/cloudflare-rate-limit", () => ({
+  consumeDistributedRateLimit: rateLimit,
+  isCloudflareRuntime,
 }));
 vi.mock("@/lib/db", () => ({ createSession, getSession }));
 
@@ -26,7 +26,8 @@ function postRequest(body: unknown) {
 }
 
 beforeEach(() => {
-  rateLimit.mockResolvedValue({ ok: true, remaining: 19, resetAt: Date.now() + 60_000 });
+  rateLimit.mockReset();
+  isCloudflareRuntime.mockReturnValue(false);
   createSession.mockReset();
   getSession.mockReset();
 });
@@ -50,10 +51,25 @@ describe("session API privacy and error contract", () => {
   });
 
   it("returns 429 and no-store when the distributed limiter rejects", async () => {
+    isCloudflareRuntime.mockReturnValue(true);
     rateLimit.mockResolvedValue({ ok: false, remaining: 0, resetAt: Date.now() + 60_000, retryAfterSeconds: 60 });
     const response = await POST(postRequest({}));
     expect(response.status).toBe(429);
     expect(response.headers.get("retry-after")).toBe("60");
+    expect(response.headers.get("cache-control")).toBe(noStore);
+  });
+
+  it("keeps Vercel's in-memory limiter when the Cloudflare binding is absent", async () => {
+    const { enforceSessionCreateRateLimit } = await import("@/lib/session-guards");
+    await expect(enforceSessionCreateRateLimit("203.0.113.5")).resolves.toMatchObject({ ok: true });
+    expect(rateLimit).not.toHaveBeenCalled();
+  });
+
+  it("fails closed only when Cloudflare is explicit and its binding is absent", async () => {
+    isCloudflareRuntime.mockReturnValue(true);
+    rateLimit.mockRejectedValue(new Error("RATE_LIMITER Durable Object binding is unavailable."));
+    const response = await POST(postRequest({}));
+    expect(response.status).toBe(503);
     expect(response.headers.get("cache-control")).toBe(noStore);
   });
 

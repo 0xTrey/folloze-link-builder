@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { consumeRateLimitWindow } from "../worker/rate-limiter";
+import { RateLimiter } from "../worker/rate-limiter";
 
 describe("Durable Object fixed-window counter", () => {
   it("serially accepts up to the limit and rejects the next request", () => {
@@ -19,5 +20,14 @@ describe("Durable Object fixed-window counter", () => {
     const result = consumeRateLimitWindow(current, { limit: 2, windowMs: 60_000, now: 10_001 });
     expect(result.next).toEqual({ count: 1, resetAt: 70_001 });
     expect(result.decision).toMatchObject({ ok: true, remaining: 1 });
+  });
+
+  it("rejects arbitrary limit and window parameters", async () => {
+    const limiter = new RateLimiter({ storage: { get: async () => undefined, put: async () => undefined } });
+    const response = await limiter.fetch(new Request("https://rate-limiter/consume", {
+      method: "POST",
+      body: JSON.stringify({ limit: 999_999, windowMs: 86_400_000 }),
+    }));
+    expect(response.status).toBe(400);
   });
 });
