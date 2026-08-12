@@ -51,6 +51,19 @@ npm run test:build-css
 This branch adds a review-only Cloudflare Worker configuration. It must not be
 deployed over the Vercel production alias without the parity checks below.
 
+### GitHub Actions preview deployment
+
+Run **Deploy Cloudflare preview** only through GitHub Actions' manual
+`workflow_dispatch` control. It rebuilds and validates the application before
+deploying only `folloze-link-builder-preview` with the lockfile-resolved
+Wrangler binary. The workflow receives only the `CLOUDFLARE_API_TOKEN` secret;
+it does not read or set `DATABASE_URL`.
+
+The current Neon credential is a separate credential-health gate. Repair and
+validate it with synthetic data before a session API can be considered healthy;
+this preview workflow must not be used to bypass that gate or to replace the
+Vercel production alias.
+
 - Build the Worker bundle: `npm run build:cloudflare`
 - Run a local Worker preview: `npm run preview:cloudflare`
 - Validate the generated Worker without deployment: `npm run check:cloudflare`
